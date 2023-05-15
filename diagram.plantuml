@@ -1,40 +1,62 @@
 @startuml project-funding
 Title: Project Funding via Smart Contract
+
 Participant "Admin" as A
 Participant "SmartContract" as SC
 Participant "Investor" as I
 
-
 A -> SC: createProject(projectId, fundingGoal)
 activate SC
-    SC -> SC: Project(projectOwner, fundingGoal, totalAmount)
+    SC -> SC: Project(id, fundingGoal, currentAmount, owner, isClosed)
     SC --> A: Event: ProjectCreated
 deactivate SC
 
-I -> SC: contribute(projectId, amount)
+I -> SC: contribute(projectId)
 activate SC
-    SC -> SC: check(amount <= fundingGoal - totalAmount)
-    alt amount <= fundingGoal - totalAmount
-        SC -> SC: totalAmount += amount
-        SC --> I: Event: DonationMade
+    SC -> SC: check(!isClosed)
+    SC -> SC: check(contribution <= fundingGoal - currentAmount)
+    alt contribution <= fundingGoal - currentAmount
+        SC -> SC: currentAmount += contribution
+        SC --> I: Event: ContributionMade
+        alt currentAmount == fundingGoal
+            SC -> SC: closeProject(projectId)
+            SC --> I: Event: FullyFunded
+        end
     else
-        SC --> I: Error: "Donation exceeds funding goal"
+        SC --> I: Error: "Contribution exceeds funding goal"
     end
 deactivate SC
 
 I -> SC: getProjectTotalAmount(projectId)
 activate SC
-    SC --> I: return totalAmount
+    SC --> I: return currentAmount
 deactivate SC
-
 A -> SC: setFundingGoal(projectId, newFundingGoal)
 activate SC
-  SC -> SC: check(msg.sender == projectOwner)
-    SC -> SC: check(newFundingGoal >= totalAmount)
-    alt newFundingGoal >= totalAmount
+    SC -> SC: check(newFundingGoal >= currentAmount)
+    alt newFundingGoal >= currentAmount
         SC -> SC: fundingGoal = newFundingGoal
         SC --> A: Event: FundingGoalUpdated
     else
         SC --> A: Error: "New funding goal cannot be less than the amount already raised"
     end
 deactivate SC
+
+A -> SC: closeProject(projectId)
+activate SC
+    SC -> SC: check(!isClosed)
+    SC -> SC: isClosed = true
+    SC --> A: Event: Closed
+deactivate SC
+
+A -> SC: withdrawFunds(projectId)
+activate SC
+    SC -> SC: check(currentAmount >= fundingGoal)
+    SC -> SC: check(currentAmount <= SC.balance)
+    SC -> SC: isClosed = true
+    SC -> SC: owner.transfer(currentAmount)
+    SC -> SC: currentAmount = 0
+    SC --> A: Event: FundsWithdrawn
+deactivate SC
+
+@enduml
