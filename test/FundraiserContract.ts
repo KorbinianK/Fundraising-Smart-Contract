@@ -114,6 +114,24 @@ describe('FundraiserContract', function () {
                     'Project with that ID is closed or fully funded'
                 )
             })
+
+            it('Should revert withdrawal if msg.sender is not owner', async function () {
+                // Given
+                const { contract, otherAccount } = await loadFixture(
+                    deployFixture
+                )
+
+                await contract.contribute(PROJECT_ID, {
+                    value: ethers.utils.parseEther('5'),
+                })
+
+                // Then
+                await expect(
+                    contract.connect(otherAccount).withdrawFunds(PROJECT_ID)
+                ).to.be.revertedWith(
+                    'Only the owner of the project can withdraw funds'
+                )
+            })
         })
 
         describe('Events', function () {

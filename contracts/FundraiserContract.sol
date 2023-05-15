@@ -69,6 +69,7 @@ contract FundraiserContract {
     }
 
     function withdrawFunds(uint _projectId) public projectMustExist(_projectId) {
+        require(msg.sender == projects[_projectId].owner, "Only the owner of the project can withdraw funds");
         require(projects[_projectId].currentAmount >= projects[_projectId].fundingGoal, "Cannot withdraw funds unless the funding goal is reached");
         require(projects[_projectId].currentAmount <= address(this).balance, "Cannot withdraw more than the raised funds");
         projects[_projectId].isClosed = true;
