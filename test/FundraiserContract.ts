@@ -3,6 +3,8 @@ import { expect } from 'chai'
 import { ethers } from 'hardhat'
 import hre from 'hardhat'
 
+const PROJECT_ID = 123
+
 describe('FundraiserContract', function () {
     async function deployFixture() {
         const [owner, otherAccount] = await ethers.getSigners()
@@ -11,8 +13,12 @@ describe('FundraiserContract', function () {
         )
 
         const contract = await FundraiserContract.deploy()
+        const project = await contract.createProject(
+            PROJECT_ID,
+            ethers.utils.parseEther('5')
+        )
 
-        return { contract, owner, otherAccount }
+        return { contract, owner, otherAccount, project }
     }
     describe('Deployment', function () {
         it('Should set the right owner', async function () {
@@ -28,17 +34,18 @@ describe('FundraiserContract', function () {
         describe('Validations', function () {
             it('Should revert if new funding goal is lower than curently invested', async function () {
                 // Given
-                const { contract } = await loadFixture(deployFixture)
+                const { contract, project } = await loadFixture(deployFixture)
 
-                await contract.createProject(123, ethers.utils.parseEther('5'))
-
-                await contract.contribute(123, {
+                await contract.contribute(PROJECT_ID, {
                     value: ethers.utils.parseEther('2'),
                 })
 
                 // Then
                 await expect(
-                    contract.setFundingGoal(123, ethers.utils.parseEther('1'))
+                    contract.setFundingGoal(
+                        PROJECT_ID,
+                        ethers.utils.parseEther('1')
+                    )
                 ).to.be.revertedWith(
                     'Funding goal must be higher or equal than the current amount'
                 )
@@ -48,11 +55,9 @@ describe('FundraiserContract', function () {
                 // Given
                 const { contract } = await loadFixture(deployFixture)
 
-                await contract.createProject(123, ethers.utils.parseEther('5'))
-
                 // Then
                 await expect(
-                    contract.contribute(123, {
+                    contract.contribute(PROJECT_ID, {
                         value: ethers.utils.parseEther('6'),
                     })
                 ).to.be.revertedWith(
@@ -64,14 +69,13 @@ describe('FundraiserContract', function () {
                 // Given
                 const { contract } = await loadFixture(deployFixture)
 
-                await contract.createProject(123, ethers.utils.parseEther('5'))
-                await contract.contribute(123, {
+                await contract.contribute(PROJECT_ID, {
                     value: ethers.utils.parseEther('0.14'),
                 })
 
                 // Then
                 expect(
-                    await contract.getProjectTotalAmountRaised(123)
+                    await contract.getProjectTotalAmountRaised(PROJECT_ID)
                 ).to.equal(ethers.utils.parseEther('0.14'))
             })
 
@@ -79,11 +83,9 @@ describe('FundraiserContract', function () {
                 // Given
                 const { contract } = await loadFixture(deployFixture)
 
-                await contract.createProject(123, 500)
-
                 // Then
                 await expect(
-                    contract.createProject(123, 100)
+                    contract.createProject(PROJECT_ID, 100)
                 ).to.be.revertedWith('Project with that ID already exists')
             })
 
@@ -93,10 +95,27 @@ describe('FundraiserContract', function () {
 
                 // Then
                 await expect(
-                    contract.getProjectTotalAmountRaised(123)
+                    contract.getProjectTotalAmountRaised(0)
                 ).to.be.revertedWith('Project with that ID does not exist')
             })
+
+            it('Should revert if project is closed', async function () {
+                // Given
+                const { contract } = await loadFixture(deployFixture)
+
+                await contract.closeProject(PROJECT_ID)
+
+                // Then
+                await expect(
+                    contract.contribute(PROJECT_ID, {
+                        value: ethers.utils.parseEther('0.14'),
+                    })
+                ).to.be.revertedWith(
+                    'Project with that ID is closed or fully funded'
+                )
+            })
         })
+
         describe('Events', function () {
             it('Should emit an event on creation of a project', async function () {
                 // Given
@@ -104,33 +123,30 @@ describe('FundraiserContract', function () {
 
                 // Then
                 await expect(
-                    contract.createProject(123, ethers.utils.parseEther('5'))
+                    contract.createProject(333, ethers.utils.parseEther('5'))
                 )
                     .to.emit(contract, 'ProjectCreated')
                     .withArgs(
-                        123,
+                        333,
                         ethers.utils.parseEther('5'),
                         0,
                         owner.address
                     )
             })
+
             it('Should emit an event on contribution to a project', async function () {
                 // Given
-                const { contract, owner, otherAccount } = await loadFixture(
-                    deployFixture
-                )
-
-                await contract.createProject(123, ethers.utils.parseEther('5'))
+                const { contract, owner } = await loadFixture(deployFixture)
 
                 // Then
                 await expect(
-                    contract.contribute(123, {
+                    contract.contribute(PROJECT_ID, {
                         value: ethers.utils.parseEther('0.14'),
                     })
                 )
                     .to.emit(contract, 'ContributionMade')
                     .withArgs(
-                        123,
+                        PROJECT_ID,
                         ethers.utils.parseEther('5'),
                         ethers.utils.parseEther('0.14'),
                         owner.address
@@ -141,17 +157,65 @@ describe('FundraiserContract', function () {
                 // Given
                 const { contract, owner } = await loadFixture(deployFixture)
 
-                await contract.createProject(123, ethers.utils.parseEther('5'))
-
                 // Then
                 await expect(
-                    contract.setFundingGoal(123, ethers.utils.parseEther('10'))
+                    contract.setFundingGoal(
+                        PROJECT_ID,
+                        ethers.utils.parseEther('10')
+                    )
                 )
                     .to.emit(contract, 'FundingGoalUpdated')
                     .withArgs(
-                        123,
+                        PROJECT_ID,
                         ethers.utils.parseEther('5'),
                         ethers.utils.parseEther('10'),
+                        owner.address
+                    )
+            })
+
+            it('Should emit an event on withdrawing the funds of a project', async function () {
+                // Given
+                const { contract, owner } = await loadFixture(deployFixture)
+
+                await contract.contribute(PROJECT_ID, {
+                    value: ethers.utils.parseEther('5'),
+                })
+
+                // Then
+                await expect(contract.withdrawFunds(PROJECT_ID))
+                    .to.emit(contract, 'FundsWithdrawn')
+                    .withArgs(
+                        PROJECT_ID,
+                        ethers.utils.parseEther('5'),
+                        owner.address
+                    )
+            })
+
+            it('Should emit an event on closing a project', async function () {
+                // Given
+                const { contract, owner } = await loadFixture(deployFixture)
+
+                // Then
+                await expect(contract.closeProject(PROJECT_ID))
+                    .to.emit(contract, 'Closed')
+                    .withArgs(PROJECT_ID, owner.address)
+            })
+
+            // test fully funded event
+            it('Should emit an event on fully funding a project', async function () {
+                // Given
+                const { contract, owner } = await loadFixture(deployFixture)
+
+                // Then
+                await expect(
+                    contract.contribute(PROJECT_ID, {
+                        value: ethers.utils.parseEther('5'),
+                    })
+                )
+                    .to.emit(contract, 'FullyFunded')
+                    .withArgs(
+                        PROJECT_ID,
+                        ethers.utils.parseEther('5'),
                         owner.address
                     )
             })
@@ -162,16 +226,14 @@ describe('FundraiserContract', function () {
                 // Given
                 const { contract } = await loadFixture(deployFixture)
 
-                await contract.createProject(123, ethers.utils.parseEther('5'))
-
                 // When
-                await contract.contribute(123, {
+                await contract.contribute(PROJECT_ID, {
                     value: ethers.utils.parseEther('0.14'),
                 })
 
                 // Then
                 expect(
-                    await contract.getProjectTotalAmountRaised(123)
+                    await contract.getProjectTotalAmountRaised(PROJECT_ID)
                 ).to.equal(ethers.utils.parseEther('0.14'))
             })
 
@@ -181,21 +243,36 @@ describe('FundraiserContract', function () {
                     deployFixture
                 )
 
-                await contract.createProject(123, ethers.utils.parseEther('5'))
-
                 // When
-                await contract.contribute(123, {
+                await contract.contribute(PROJECT_ID, {
                     value: ethers.utils.parseEther('0.5'),
                 })
 
-                await contract.connect(otherAccount).contribute(123, {
+                await contract.connect(otherAccount).contribute(PROJECT_ID, {
                     value: ethers.utils.parseEther('0.6'),
                 })
 
                 // Then
                 expect(
-                    await contract.getProjectTotalAmountRaised(123)
+                    await contract.getProjectTotalAmountRaised(PROJECT_ID)
                 ).to.equal(ethers.utils.parseEther('1.1'))
+            })
+
+            it('Should allow withdrawal of the funds to the owner', async function () {
+                // Given
+                const { contract, owner } = await loadFixture(deployFixture)
+
+                // When
+                await contract.contribute(PROJECT_ID, {
+                    value: ethers.utils.parseEther('5'),
+                })
+
+                await contract.withdrawFunds(PROJECT_ID)
+
+                // Then
+                expect(
+                    await contract.getProjectTotalAmountRaised(PROJECT_ID)
+                ).to.equal(ethers.utils.parseEther('0'))
             })
         })
     })
