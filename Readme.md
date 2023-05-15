@@ -52,4 +52,4 @@ More info: [hardhat.org](https://hardhat.org/docs)
 
 -   Roles & Permissions (e.g. OpenZeppelin access management)
 -   Upgradability (e.g. OpenZepplin proxy)
--   Handle
+-   Handling of ERC20 tokens, e.g. a stable coin instead of Ether
