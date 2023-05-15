@@ -1,0 +1,40 @@
+@startuml project-funding
+Title: Project Funding via Smart Contract
+Participant "Admin" as A
+Participant "SmartContract" as SC
+Participant "Investor" as I
+
+
+A -> SC: createProject(projectId, fundingGoal)
+activate SC
+    SC -> SC: Project(projectOwner, fundingGoal, totalAmount)
+    SC --> A: Event: ProjectCreated
+deactivate SC
+
+I -> SC: contribute(projectId, amount)
+activate SC
+    SC -> SC: check(amount <= fundingGoal - totalAmount)
+    alt amount <= fundingGoal - totalAmount
+        SC -> SC: totalAmount += amount
+        SC --> I: Event: DonationMade
+    else
+        SC --> I: Error: "Donation exceeds funding goal"
+    end
+deactivate SC
+
+I -> SC: getProjectTotalAmount(projectId)
+activate SC
+    SC --> I: return totalAmount
+deactivate SC
+
+A -> SC: setFundingGoal(projectId, newFundingGoal)
+activate SC
+  SC -> SC: check(msg.sender == projectOwner)
+    SC -> SC: check(newFundingGoal >= totalAmount)
+    alt newFundingGoal >= totalAmount
+        SC -> SC: fundingGoal = newFundingGoal
+        SC --> A: Event: FundingGoalUpdated
+    else
+        SC --> A: Error: "New funding goal cannot be less than the amount already raised"
+    end
+deactivate SC

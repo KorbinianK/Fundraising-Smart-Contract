@@ -1,0 +1,20 @@
+{
+    "name": "fundraising-contract",
+    "version": "1.0.0",
+    "description": "A simple fundraising smart contract in solidity",
+    "main": "index.js",
+    "scripts": {
+        "test": "npx hardhat test",
+        "compile": "npx hardhat compile",
+        "console": "npx hardhat console",
+        "deploy::local": "npx hardhat run --network localhost scripts/deploy.ts",
+        "node": "npx hardhat node"
+    },
+    "keywords": [],
+    "author": "Korbinian Kasberger",
+    "license": "ISC",
+    "devDependencies": {
+        "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+        "hardhat": "^2.14.0"
+    }
+}
