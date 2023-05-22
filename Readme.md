@@ -53,10 +53,16 @@ Then, compile the smart contract:
 npm run compile
 ```
 
-To deploy the smart contract to the local Hardhat Network, run:
+Start a local dev node
 
 ```bash
-npm run deploy
+npm run node
+```
+
+To deploy the smart contract to the local Hardhat Network, run in a new CLI:
+
+```bash
+npm run deploy::local
 ```
 
 You can also test the smart contract by running:
